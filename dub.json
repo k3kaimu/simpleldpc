@@ -1,0 +1,9 @@
+{
+	"authors": [
+		"Kazuki Komatsu"
+	],
+	"copyright": "Copyright © 2019, Kazuki Komatsu",
+	"description": "Simple LDPC encoder and decoder",
+	"license": "CC0",
+	"name": "simpleldpc"
+}
