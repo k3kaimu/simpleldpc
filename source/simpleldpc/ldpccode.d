@@ -222,6 +222,67 @@ class BLDPCCode
         return decoded_cw;
     }
 
+
+    ubyte[] decodeP0P1(in double[] input_p0p1, uint max_iter) const
+    {
+        double[][] edge_mat = new double[][](_M);
+        double[][] last_edge_mat = new double[][](_M);
+        double[] updated_p0p1 = input_p0p1.dup;
+
+        ubyte[] decoded_cw = new ubyte[_N];
+
+        foreach(i; 0 .. _M) {
+            edge_mat[i] = new double[](_row_mat[i].length);
+            edge_mat[i][] = 1;
+            last_edge_mat[i] = new double[](_row_mat[i].length);
+            last_edge_mat[i][] = 1;
+        }
+
+        foreach(iter; 0 .. max_iter) 
+        {
+            foreach(i_row, row; _row_mat) {
+                foreach(i_col_index1, i_col_1; row) {
+                    double tmp = 1;
+                    foreach(i_col_index2, i_col_2; row) {
+                        if(i_col_index1 == i_col_index2) continue;
+
+                        double p0p1 = updated_p0p1[i_col_2] / last_edge_mat[i_row][i_col_index2];
+                        double p1 = 1/(1 + p0p1);
+                        tmp *= (1 - 2*p1);
+                    }
+
+                    tmp = (1 + tmp)/(1 - tmp);
+                    tmp = min(tmp, 1E3);
+                    tmp = max(tmp, 1E-3);
+                    edge_mat[i_row][i_col_index1] = tmp;
+                }
+            }
+
+            foreach(i; 0 .. _M)
+                last_edge_mat[i][] = edge_mat[i][];
+
+            updated_p0p1[] = input_p0p1[];
+
+            foreach(i_row, row; _row_mat) {
+                foreach(i_col_index, i_col; row) {
+                    updated_p0p1[i_col] *= last_edge_mat[i_row][i_col_index];
+                }
+            }
+
+            foreach(i; 0 .. _N) {
+                if(updated_p0p1[i] > 1)
+                    decoded_cw[i] = 0;
+                else
+                    decoded_cw[i] = 1;
+            }
+
+            if(checkCodeword(decoded_cw))
+                break;
+        }
+
+        return decoded_cw;
+    }
+
   private:
     ubyte[][] _H_mat;       // transposed
     uint _N;

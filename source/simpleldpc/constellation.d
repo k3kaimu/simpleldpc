@@ -71,9 +71,19 @@ class Constellation
 
     double[] computeLLR(double[] y, double n_0)
     {
+        auto dst = computeP0P1(y, n_0);
+        foreach(ref e; dst)
+            e = log(e);
+
+        return dst;
+    }
+
+
+    double[] computeP0P1(double[] y, double n_0)
+    {
         auto p_0 = new double[](y.length * _n_bits);
         auto p_1 = new double[](y.length * _n_bits);
-        auto llr = new double[](y.length * _n_bits);
+        auto p0p1 = new double[](y.length * _n_bits);
 
         p_0[] = 0;
         p_1[] = 0;
@@ -91,10 +101,10 @@ class Constellation
             }
         }
 
-        foreach(i_bit; 0 .. llr.length)
-            llr[i_bit] = log(p_0[i_bit] / p_1[i_bit]);
+        foreach(i_bit; 0 .. p0p1.length)
+            p0p1[i_bit] = p_0[i_bit] / p_1[i_bit];
 
-        return llr;
+        return p0p1;
     }
 
 
