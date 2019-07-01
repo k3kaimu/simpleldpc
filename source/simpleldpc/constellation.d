@@ -69,7 +69,7 @@ class Constellation
     }
 
 
-    double[] llr_compute(double[] y, double n_0)
+    double[] computeLLR(double[] y, double n_0)
     {
         auto p_0 = new double[](y.length * _n_bits);
         auto p_1 = new double[](y.length * _n_bits);

@@ -27,7 +27,7 @@ class BLDPCCode
     /**
     パリティ検査行列Hとcodewordをかけ合わせて，パリティ検査します
     */
-    bool check_codeword(in ubyte[] decoded_cw)
+    bool checkCodeword(in ubyte[] decoded_cw) const
     {
         bool check = true;
         foreach(i_check; 0 .. _M) {
@@ -99,7 +99,7 @@ class BLDPCCode
     }
 
 
-    uint info_length()
+    uint infoLength() const
     {
         return _K;
     }
@@ -108,7 +108,7 @@ class BLDPCCode
     /++
     S. Myung, K. Yang, J. Kim, "Quasi-Cyclic LDPC Codes for Fast Encoding", IEEE Trans. on Inform. Theory, vol. 51, no. 8, August 2005.
     +/
-    ubyte[] encode(in ubyte[] info_bits)
+    ubyte[] encode(in ubyte[] info_bits) const
     {
         ubyte[] codeword = new ubyte[](_N);
         codeword[0 .. _K] = info_bits[];
@@ -153,7 +153,7 @@ class BLDPCCode
     }
 
 
-    ubyte[] decode(in double[] llr, uint max_iter)
+    ubyte[] decodeLLR(in double[] llr, uint max_iter) const
     {
         double[][] edge_mat = new double[][](_M);
         double[][] last_edge_mat = new double[][](_M);
@@ -215,7 +215,7 @@ class BLDPCCode
                     decoded_cw[i] = 1;
             }
 
-            if(check_codeword(decoded_cw))
+            if(checkCodeword(decoded_cw))
                 break;
         }
 
