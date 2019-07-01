@@ -1,7 +1,9 @@
 module simpleldpc.ldpccode;
 
+import std.algorithm : min, max;
 import std.exception : enforce;
 import std.format : format;
+import std.math : tanh, atanh;
 import std.range : iota;
 
 import simpleldpc.wifildpc;
@@ -97,7 +99,7 @@ class BLDPCCode
     }
 
 
-    uint get_info_length()
+    uint info_length()
     {
         return _K;
     }
@@ -151,7 +153,74 @@ class BLDPCCode
     }
 
 
-    // ubyte[] decode(double[] llr, uint max_iter, bool min_sum);
+    ubyte[] decode(in double[] llr, uint max_iter)
+    {
+        double[][] edge_mat = new double[][](_M);
+        double[][] last_edge_mat = new double[][](_M);
+        double[] updated_llr = llr.dup;
+
+        ubyte[] decoded_cw = new ubyte[_N];
+
+        foreach(i; 0 .. _M) {
+            edge_mat[i] = new double[](_row_mat[i].length);
+            edge_mat[i][] = 0;
+            last_edge_mat[i] = new double[](_row_mat[i].length);
+            last_edge_mat[i][] = 0;
+        }
+
+        foreach(iter; 0 .. max_iter) 
+        {
+            // 関数ノードでの周辺化
+            foreach(i_row, row; _row_mat) {
+                // i_rowのチェックノードからi_col_1の変数ノードへ送るLLRを計算する
+                foreach(i_col_index1, i_col_1; row) {
+                    double tmp = 1;
+                    foreach(i_col_index2, i_col_2; row) {
+                        if(i_col_index1 == i_col_index2) continue;
+
+                        // 変数ノードでの計算時に自身のノードのLLRも加えているので
+                        // それは引き算して周辺化した値を得る
+                        double l1 = updated_llr[i_col_2] - last_edge_mat[i_row][i_col_index2];
+                        // tanhの発散を防ぐ
+                        l1 = min(l1, 20.0);
+                        l1 = max(l1, -20.0);
+                        tmp *= tanh(l1/2);
+                    }
+
+                    edge_mat[i_row][i_col_index1] = 2 * atanh(tmp);
+                }
+            }
+
+            // copy
+            foreach(i; 0 .. _M)
+                last_edge_mat[i][] = edge_mat[i][];
+
+            // 変数ノードでの計算では，事前分布としての入力LLRに関数ノードからのLLRを加える
+            // そのためここではまず入力LLRを入れておく
+            updated_llr[] = llr[];
+
+            // 関数ノードからのメッセージの合成積，ただし，対数尤度比なので和を計算する
+            // 自分のノード分も足しているので，それは関数ノードでの計算で引き算する
+            foreach(i_row, row; _row_mat) {
+                foreach(i_col_index, i_col; row) {
+                    updated_llr[i_col] += last_edge_mat[i_row][i_col_index];
+                }
+            }
+
+            // LLRに従って硬判定をする
+            foreach(i; 0 .. _N) {
+                if(updated_llr[i] > 0)
+                    decoded_cw[i] = 0;
+                else
+                    decoded_cw[i] = 1;
+            }
+
+            if(check_codeword(decoded_cw))
+                break;
+        }
+
+        return decoded_cw;
+    }
 
   private:
     ubyte[][] _H_mat;       // transposed
@@ -266,4 +335,21 @@ unittest
         1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1,
         0, 1, 0, 1, 1, 0, 1, 1
     ]);
+
+    import std.math;
+    import std.random;
+    import simpleldpc.constellation;
+    auto mod = new Constellation(1);
+    auto syms = mod.modulate(codeword);
+    Random rnd;
+    rnd.seed(0);
+    foreach(ref e; syms) {
+        auto x = uniform01(rnd),
+             y = uniform01(rnd);
+
+        e += sqrt(-2*log(x))*cos(2*PI*y) * SQRT1_2;
+    }
+    auto llr = mod.llr_compute(syms, 0.5);
+    auto decoded = code.decode(llr, 20);
+    assert(decoded == codeword);
 }
