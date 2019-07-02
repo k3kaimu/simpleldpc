@@ -70,29 +70,40 @@ void main()
         StopWatch sw;
         while(totalBlocks < MaxTotalBlocks && errorBlocks < MaxErrorBlocks) {
             rnd.makeBits(info);
-            
-            ubyte[] coded = ldpc.encode(info);
-            double[] sym = mod.modulate(coded);
-            rnd.makeNoise(noise);
 
-            sym[] += noise[] * noiseAmp;
+            double[] p0p1;
+            ubyte[] coded;
+
+            enum size_t P = 4;
+            
+            foreach(i; 0 .. P) {
+                coded ~= ldpc.encode(info);
+                double[] sym = mod.modulate(coded[i*N .. (i+1)*N]);
+                rnd.makeNoise(noise);
+
+                sym[] += noise[] * noiseAmp;
+
+                p0p1 ~= mod.computeP0P1(sym, N0);
+                // auto llr = mod.computeLLR(sym, N0);
+            }
 
             sw.start();
-            auto p0p1 = mod.computeP0P1(sym, N0);
-            ubyte[] decoded = ldpc.decodeP0P1(p0p1, 20);
-            // auto llr = mod.computeLLR(sym, N0);
+            ubyte[] decoded = ldpc.decodeP0P1AVX!(float[4])(p0p1, 20);
+            // ubyte[] decoded = ldpc.decodeP0P1(p0p1, 20);
             // ubyte[] decoded = ldpc.decodeLLR(llr, 20);
             sw.stop();
 
-            if(coded[0 .. K] != decoded[0 .. K])
-                ++errorBlocks;
+            foreach(i; 0 .. P) {
+                if(coded[i*N .. i*N + K] != decoded[i*N .. i*N + K])
+                    ++errorBlocks;
 
-            foreach(i; 0 .. K)
-                if(coded[i] != decoded[i])
-                    ++errorBits;
+                foreach(j; 0 .. K)
+                    if(coded[i*N + j] != decoded[i*N + j])
+                        ++errorBits;
+            }
 
-            totalBits += K;
-            totalBlocks += 1;
+            totalBits += K * P;
+            totalBlocks += P;
         }
 
         berList[i_ebn0] = errorBits * 1.0 / totalBits;

@@ -283,6 +283,95 @@ class BLDPCCode
         return decoded_cw;
     }
 
+
+    ubyte[] decodeP0P1AVX(V, F)(in F[] input_p0p1, uint max_iter) const
+    in{
+        assert(input_p0p1.length == _N * 4);
+    }
+    body {
+        import core.simd;
+
+        enum size_t P = V.length;
+        alias VecType = Vector!V;
+
+        VecType[][] edge_mat = new VecType[][](_M);
+        VecType[][] last_edge_mat = new VecType[][](_M);
+        VecType[] updated_p0p1 = new VecType[](_N);
+        VecType[] input_p0p1_copy = new VecType[](_N);
+        bool[P] success;
+
+        ubyte[] decoded_cw = new ubyte[_N * P];
+
+        foreach(i; 0 .. P) foreach(j; 0 .. _N) {
+            input_p0p1_copy[j][i] = input_p0p1[i*_N + j];
+            updated_p0p1[j][i] = input_p0p1[i*_N + j];
+        }
+
+        foreach(i; 0 .. _M) {
+            edge_mat[i] = new VecType[](_row_mat[i].length);
+            edge_mat[i][] = 1;
+            last_edge_mat[i] = new VecType[](_row_mat[i].length);
+            last_edge_mat[i][] = 1;
+        }
+
+        foreach(iter; 0 .. max_iter) 
+        {
+            foreach(i_row, row; _row_mat) {
+                foreach(i_col_index1, i_col_1; row) {
+                    VecType tmp = 1;
+                    foreach(i_col_index2, i_col_2; row) {
+                        if(i_col_index1 == i_col_index2) continue;
+
+                        VecType p0p1 = updated_p0p1[i_col_2] / last_edge_mat[i_row][i_col_index2];
+                        VecType p1 = 1/(1 + p0p1);
+                        tmp *= (1 - 2*p1);
+                    }
+
+                    tmp = (1 + tmp)/(1 - tmp);
+                    foreach(i; 0 .. P) {
+                        tmp[i] = min(tmp[i], 1E3);
+                        tmp[i] = max(tmp[i], 1E-3);
+                    }
+                    edge_mat[i_row][i_col_index1] = tmp;
+                }
+            }
+
+            foreach(i; 0 .. _M)
+                last_edge_mat[i][] = edge_mat[i][];
+
+            updated_p0p1[] = input_p0p1_copy[];
+
+            foreach(i_row, row; _row_mat) {
+                foreach(i_col_index, i_col; row) {
+                    updated_p0p1[i_col] *= last_edge_mat[i_row][i_col_index];
+                }
+            }
+
+            foreach(i; 0 .. P){
+                if(success[i]) continue;
+
+                foreach(j; 0 .. _N) {
+                    if(updated_p0p1[j][i] > 1)
+                        decoded_cw[i*_N + j] = 0;
+                    else
+                        decoded_cw[i*_N + j] = 1;
+                }
+
+                if(checkCodeword(decoded_cw[i*_N .. (i+1)*_N]))
+                    success[i] = true;
+            }
+
+            bool checkAllSuccess = true;
+            foreach(i; 0 .. P)
+                checkAllSuccess = checkAllSuccess && success[i];
+
+            if(checkAllSuccess)
+                break;
+        }
+
+        return decoded_cw;
+    }
+
   private:
     ubyte[][] _H_mat;       // transposed
     uint _N;
