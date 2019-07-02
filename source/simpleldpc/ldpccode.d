@@ -284,7 +284,7 @@ class BLDPCCode
     }
 
 
-    void decodeP0P1AVX(V, F)(in F[] input_p0p1, uint max_iter, ubyte[] decoded_cw) const
+    void decodeP0P1SIMD(V, F)(in F[] input_p0p1, uint max_iter, ubyte[] decoded_cw) const
     in{
         assert(input_p0p1.length == _N * V.length);
         assert(decoded_cw.length == _N * V.length);
