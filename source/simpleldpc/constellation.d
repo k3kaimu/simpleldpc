@@ -122,19 +122,19 @@ unittest
     assert(cs1._bit_sym_map == [[0], [1]]);
     auto syms = cs1.modulate([0, 1]);
     assert(syms.approxEqual([-1, 1]));
-    assert(cs1.llr_compute(syms, 1).approxEqual([2, -2]));
+    assert(cs1.computeLLR(syms, 1).approxEqual([2, -2]));
 
     auto cs2 = new Constellation(2);
     assert(cs2._bit_sym_map == [[0, 0], [1, 0], [0, 1], [1, 1]]);
     syms = cs2.modulate([0, 0, 1, 0, 0, 1, 1, 1]);
     assert(syms.approxEqual([-1.34164, -0.447214, 1.34164, 0.447214]));
-    assert(cs2.llr_compute(syms, 1).approxEqual([0.163675, 1.98609, -0.649733, 0.649733, 0.163675, -1.98609, -0.649733, -0.649733]));
+    assert(cs2.computeLLR(syms, 1).approxEqual([0.163675, 1.98609, -0.649733, 0.649733, 0.163675, -1.98609, -0.649733, -0.649733]));
 
     auto cs3 = new Constellation(3);
     assert(cs3._bit_sym_map == [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]]);
     syms = cs3.modulate([0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1]);
     assert(syms.approxEqual([-1.52753, -1.09109, -0.218218, -0.654654, 1.52753, 1.09109, 0.218218, 0.654654]));
-    assert(cs3.llr_compute(syms, 1).approxEqual([
+    assert(cs3.computeLLR(syms, 1).approxEqual([
         -0.0389527, 0.319143, 2.14779,
         -0.0798453, -0.0940412, 1.51827,
         -0.0565873, -0.693676, 0.300105,

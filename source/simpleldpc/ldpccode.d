@@ -360,7 +360,7 @@ unittest
     auto codeword = code.encode(rndbits);
 
     assert(rndbits[0 .. 324] == codeword[0 .. 324]);
-    assert(code.check_codeword(codeword));
+    assert(code.checkCodeword(codeword));
     assert(codeword == [
         0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1,
         0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0,
@@ -410,7 +410,7 @@ unittest
 
         e += sqrt(-2*log(x))*cos(2*PI*y) * SQRT1_2;
     }
-    auto llr = mod.llr_compute(syms, 0.5);
-    auto decoded = code.decode(llr, 20);
+    auto llr = mod.computeLLR(syms, 0.5);
+    auto decoded = code.decodeLLR(llr, 20);
     assert(decoded == codeword);
 }
