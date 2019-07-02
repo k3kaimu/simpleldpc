@@ -223,18 +223,28 @@ class BLDPCCode
     }
 
 
-    ubyte[] decodeP0P1(in double[] input_p0p1, uint max_iter) const
+    ubyte[] decodeP0P1(F)(in F[] input_p0p1, uint max_iter, ubyte[] decoded_cw) const
     {
-        double[][] edge_mat = new double[][](_M);
-        double[][] last_edge_mat = new double[][](_M);
-        double[] updated_p0p1 = input_p0p1.dup;
+        static float[][] edge_mat;
+        static float[][] last_edge_mat;
+        static float[] updated_p0p1;
 
-        ubyte[] decoded_cw = new ubyte[_N];
+        if(edge_mat is null) {
+            edge_mat = new float[][](_M);
+            last_edge_mat = new float[][](_M);
+            updated_p0p1 = new float[_N];
+
+            foreach(i; 0 .. _M) {
+                edge_mat[i] = new float[](_row_mat[i].length);
+                last_edge_mat[i] = new float[](_row_mat[i].length);
+            }
+        }
+
+        foreach(i; 0 .. _N)
+            updated_p0p1[i] = input_p0p1[i];
 
         foreach(i; 0 .. _M) {
-            edge_mat[i] = new double[](_row_mat[i].length);
             edge_mat[i][] = 1;
-            last_edge_mat[i] = new double[](_row_mat[i].length);
             last_edge_mat[i][] = 1;
         }
 
@@ -242,12 +252,12 @@ class BLDPCCode
         {
             foreach(i_row, row; _row_mat) {
                 foreach(i_col_index1, i_col_1; row) {
-                    double tmp = 1;
+                    float tmp = 1;
                     foreach(i_col_index2, i_col_2; row) {
                         if(i_col_index1 == i_col_index2) continue;
 
-                        double p0p1 = updated_p0p1[i_col_2] / last_edge_mat[i_row][i_col_index2];
-                        double p1 = 1/(1 + p0p1);
+                        float p0p1 = updated_p0p1[i_col_2] / last_edge_mat[i_row][i_col_index2];
+                        float p1 = 1/(1 + p0p1);
                         tmp *= (1 - 2*p1);
                     }
 
@@ -261,7 +271,8 @@ class BLDPCCode
             foreach(i; 0 .. _M)
                 last_edge_mat[i][] = edge_mat[i][];
 
-            updated_p0p1[] = input_p0p1[];
+            foreach(i; 0 .. _N)
+                updated_p0p1[i] = input_p0p1[i];
 
             foreach(i_row, row; _row_mat) {
                 foreach(i_col_index, i_col; row) {
