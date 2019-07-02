@@ -41,14 +41,6 @@ void main()
     double[] berList = new double[ebn0_dBList.length];
     double[] blerList = new double[ebn0_dBList.length];
 
-    StopWatch sw;
-    sw.start();
-
-    scope(success) {
-        sw.stop();
-        writeln(sw.peek.seconds);
-    }
-
     foreach(i_ebn0, ebn0_dB; ebn0_dBList.parallel) {
         immutable double ebn0 = 10.0^^(ebn0_dB / 10);
         immutable double snr = ebn0 * K / N * Nc;
@@ -71,10 +63,10 @@ void main()
         while(totalBlocks < MaxTotalBlocks && errorBlocks < MaxErrorBlocks) {
             rnd.makeBits(info);
 
+            enum size_t P = 4;
             double[] p0p1;
             ubyte[] coded;
-
-            enum size_t P = 4;
+            ubyte[] decoded = new ubyte[N*P];
             
             foreach(i; 0 .. P) {
                 coded ~= ldpc.encode(info);
@@ -88,7 +80,7 @@ void main()
             }
 
             sw.start();
-            ubyte[] decoded = ldpc.decodeP0P1AVX!(float[4])(p0p1, 20);
+            ldpc.decodeP0P1AVX!(float[4])(p0p1, 20, decoded);
             // ubyte[] decoded = ldpc.decodeP0P1(p0p1, 20);
             // ubyte[] decoded = ldpc.decodeLLR(llr, 20);
             sw.stop();

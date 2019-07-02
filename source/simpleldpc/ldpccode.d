@@ -284,9 +284,10 @@ class BLDPCCode
     }
 
 
-    ubyte[] decodeP0P1AVX(V, F)(in F[] input_p0p1, uint max_iter) const
+    void decodeP0P1AVX(V, F)(in F[] input_p0p1, uint max_iter, ubyte[] decoded_cw) const
     in{
-        assert(input_p0p1.length == _N * 4);
+        assert(input_p0p1.length == _N * V.length);
+        assert(decoded_cw.length == _N * V.length);
     }
     body {
         import core.simd;
@@ -294,13 +295,24 @@ class BLDPCCode
         enum size_t P = V.length;
         alias VecType = Vector!V;
 
-        VecType[][] edge_mat = new VecType[][](_M);
-        VecType[][] last_edge_mat = new VecType[][](_M);
-        VecType[] updated_p0p1 = new VecType[](_N);
-        VecType[] input_p0p1_copy = new VecType[](_N);
-        bool[P] success;
+        static VecType[][] edge_mat;
+        static VecType[][] last_edge_mat;
+        static VecType[] updated_p0p1;
+        static VecType[] input_p0p1_copy;
 
-        ubyte[] decoded_cw = new ubyte[_N * P];
+        if(edge_mat is null) {
+            edge_mat = new VecType[][](_M);
+            last_edge_mat = new VecType[][](_M);
+            updated_p0p1 = new VecType[](_N);
+            input_p0p1_copy = new VecType[](_N);
+
+            foreach(i; 0 .. _M) {
+                edge_mat[i] = new VecType[](_row_mat[i].length);
+                last_edge_mat[i] = new VecType[](_row_mat[i].length);
+            }
+        }
+
+        bool[P] success;
 
         foreach(i; 0 .. P) foreach(j; 0 .. _N) {
             input_p0p1_copy[j][i] = input_p0p1[i*_N + j];
@@ -308,9 +320,7 @@ class BLDPCCode
         }
 
         foreach(i; 0 .. _M) {
-            edge_mat[i] = new VecType[](_row_mat[i].length);
             edge_mat[i][] = 1;
-            last_edge_mat[i] = new VecType[](_row_mat[i].length);
             last_edge_mat[i][] = 1;
         }
 
@@ -368,8 +378,6 @@ class BLDPCCode
             if(checkAllSuccess)
                 break;
         }
-
-        return decoded_cw;
     }
 
   private:
