@@ -8,6 +8,23 @@ import std.range : iota;
 
 import simpleldpc.wifildpc;
 
+import core.simd;
+
+version(LDC)
+{
+    pragma(LDC_intrinsic, "llvm.minnum.v4f32")
+    float4 _mm_minps_(float4, float4) pure @safe;
+    pragma(LDC_intrinsic, "llvm.maxnum.v4f32")
+    float4 _mm_maxps_(float4, float4) pure @safe;
+}
+
+version(DigitalMars)
+{
+    float4 _mm_minps_(float4 x, float4 y) pure @safe { return simd!(XMM.MINPS)(x, y); }
+    float4 _mm_maxps_(float4 x, float4 y) pure @safe { return simd!(XMM.MAXPS)(x, y); }
+}
+
+
 /++
 BLDPC encoder and decoder.
 +/
@@ -355,10 +372,9 @@ class BLDPCCode
                     VecType tmp = prob_product / (1 - 2*p1);
 
                     tmp = (1 + tmp)/(1 - tmp);
-                    foreach(i; 0 .. P) {
-                        tmp[i] = min(tmp[i], 1E3);
-                        tmp[i] = max(tmp[i], 1E-3);
-                    }
+                    VecType vmin = 1E-3, vmax = 1E3;
+                    tmp = _mm_minps_(tmp, vmax);
+                    tmp = _mm_maxps_(tmp, vmin);
                     edge_mat[i_row][i_col_index1] = tmp;
                 }
             }
