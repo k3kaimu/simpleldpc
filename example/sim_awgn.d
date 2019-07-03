@@ -64,7 +64,7 @@ void main()
             rnd.makeBits(info);
 
             enum size_t P = 4;
-            double[] p0p1;
+            double[] p0p1, llr;
             ubyte[] coded;
             ubyte[] decoded = new ubyte[N*P];
             
@@ -76,13 +76,13 @@ void main()
                 sym[] += noise[] * noiseAmp;
 
                 p0p1 ~= mod.computeP0P1(sym, N0);
-                // auto llr = mod.computeLLR(sym, N0);
+                // llr = mod.computeLLR(sym, N0);
             }
 
             sw.start();
             ldpc.decodeP0P1SIMD!(float[P])(p0p1, 20, decoded);
             // ldpc.decodeP0P1(p0p1, 20, decoded);
-            // ubyte[] decoded = ldpc.decodeLLR(llr, 20);
+            // decoded = ldpc.decodeLLR(llr, 20);
             sw.stop();
 
             foreach(i; 0 .. P) {

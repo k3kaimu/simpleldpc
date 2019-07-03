@@ -173,20 +173,22 @@ class BLDPCCode
             // 関数ノードでの周辺化
             foreach(i_row, row; _row_mat) {
                 // i_rowのチェックノードからi_col_1の変数ノードへ送るLLRを計算する
+                double product = 1;
+                foreach(i_col_index, i_col; row) {
+                    // 変数ノードでの計算時に自身のノードのLLRも加えているので
+                    // それは引き算して周辺化した値を得る
+                    double l1 = updated_llr[i_col] - last_edge_mat[i_row][i_col_index];
+                    // tanhの発散を防ぐ
+                    l1 = min(l1, 20.0);
+                    l1 = max(l1, -20.0);
+                    product *= tanh(l1/2);
+                }
+
                 foreach(i_col_index1, i_col_1; row) {
-                    double tmp = 1;
-                    foreach(i_col_index2, i_col_2; row) {
-                        if(i_col_index1 == i_col_index2) continue;
-
-                        // 変数ノードでの計算時に自身のノードのLLRも加えているので
-                        // それは引き算して周辺化した値を得る
-                        double l1 = updated_llr[i_col_2] - last_edge_mat[i_row][i_col_index2];
-                        // tanhの発散を防ぐ
-                        l1 = min(l1, 20.0);
-                        l1 = max(l1, -20.0);
-                        tmp *= tanh(l1/2);
-                    }
-
+                    double l1 = updated_llr[i_col_1] - last_edge_mat[i_row][i_col_index1];
+                    l1 = min(l1, 20.0);
+                    l1 = max(l1, -20.0);
+                    double tmp = product / tanh(l1/2);
                     edge_mat[i_row][i_col_index1] = 2 * atanh(tmp);
                 }
             }
@@ -251,15 +253,17 @@ class BLDPCCode
         foreach(iter; 0 .. max_iter) 
         {
             foreach(i_row, row; _row_mat) {
-                foreach(i_col_index1, i_col_1; row) {
-                    float tmp = 1;
-                    foreach(i_col_index2, i_col_2; row) {
-                        if(i_col_index1 == i_col_index2) continue;
+                float prob_product = 1;
+                foreach(i_col_index, i_col; row) {
+                    float p0p1 = updated_p0p1[i_col] / last_edge_mat[i_row][i_col_index];
+                    float p1 = 1/(1 + p0p1);
+                    prob_product *= (1 - 2*p1);
+                }
 
-                        float p0p1 = updated_p0p1[i_col_2] / last_edge_mat[i_row][i_col_index2];
-                        float p1 = 1/(1 + p0p1);
-                        tmp *= (1 - 2*p1);
-                    }
+                foreach(i_col_index1, i_col_1; row) {
+                    float p0p1 = updated_p0p1[i_col_1] / last_edge_mat[i_row][i_col_index1];
+                    float p1 = 1/(1 + p0p1);
+                    auto tmp = prob_product / (1 - 2*p1);
 
                     tmp = (1 + tmp)/(1 - tmp);
                     tmp = min(tmp, 1E3);
@@ -338,15 +342,17 @@ class BLDPCCode
         foreach(iter; 0 .. max_iter) 
         {
             foreach(i_row, row; _row_mat) {
+                VecType prob_product = 1;
                 foreach(i_col_index1, i_col_1; row) {
-                    VecType tmp = 1;
-                    foreach(i_col_index2, i_col_2; row) {
-                        if(i_col_index1 == i_col_index2) continue;
+                    VecType p0p1 = updated_p0p1[i_col_1] / last_edge_mat[i_row][i_col_index1];
+                    VecType p1 = 1/(1 + p0p1);
+                    prob_product *= (1 - 2*p1);
+                }
 
-                        VecType p0p1 = updated_p0p1[i_col_2] / last_edge_mat[i_row][i_col_index2];
-                        VecType p1 = 1/(1 + p0p1);
-                        tmp *= (1 - 2*p1);
-                    }
+                foreach(i_col_index1, i_col_1; row) {
+                    VecType p0p1 = updated_p0p1[i_col_1] / last_edge_mat[i_row][i_col_index1];
+                    VecType p1 = 1/(1 + p0p1);
+                    VecType tmp = prob_product / (1 - 2*p1);
 
                     tmp = (1 + tmp)/(1 - tmp);
                     foreach(i; 0 .. P) {
