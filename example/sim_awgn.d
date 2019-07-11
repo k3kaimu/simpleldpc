@@ -21,7 +21,8 @@ import std.stdio;
 
 
 void main()
-{    immutable
+{
+    immutable
         N = 648,
         K = 324,
         M = N - K,
@@ -29,7 +30,7 @@ void main()
         Nc = 1;             // 1: QPSK, 2: 16QAM, 3: 64QAM
 
     BLDPCCode ldpc = new BLDPCCode(N, K);
-    ldpc.loadWiFiLDPC(N, 0);    // 648, 324, 1/2
+    ldpc.loadWiFiLDPC(N, 0);
 
     Constellation mod = new Constellation(Nc);
 
@@ -41,11 +42,14 @@ void main()
     double[] berList = new double[ebn0_dBList.length];
     double[] blerList = new double[ebn0_dBList.length];
 
-    foreach(i_ebn0, ebn0_dB; ebn0_dBList.parallel) {
+    enum size_t P = 8;
+
+    foreach(i_ebn0, ebn0_dB; ebn0_dBList) {
         immutable double ebn0 = 10.0^^(ebn0_dB / 10);
         immutable double snr = ebn0 * K / N * Nc;
         immutable double N0 = 0.5 / snr;
         immutable double noiseAmp = sqrt(N0);
+        Workspace!(float[P]) ws;
 
         ubyte[] info = new ubyte[K];
         double[] noise = new double[N / Nc];
@@ -63,7 +67,6 @@ void main()
         while(totalBlocks < MaxTotalBlocks && errorBlocks < MaxErrorBlocks) {
             rnd.makeBits(info);
 
-            enum size_t P = 4;
             double[] p0p1, llr;
             ubyte[] coded;
             ubyte[] decoded = new ubyte[N*P];
@@ -80,7 +83,7 @@ void main()
             }
 
             sw.start();
-            ldpc.decodeP0P1SIMD!(float[P])(p0p1, 20, decoded);
+            ldpc.decodeP0P1SIMD!(float[P])(ws, p0p1, 20, decoded);
             // ldpc.decodeP0P1(p0p1, 20, decoded);
             // decoded = ldpc.decodeLLR(llr, 20);
             sw.stop();

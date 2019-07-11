@@ -12,10 +12,16 @@ import core.simd;
 
 version(LDC)
 {
+    import ldc.attributes;
+
     pragma(LDC_intrinsic, "llvm.minnum.v4f32")
     float4 _mm_minps_(float4, float4) pure @safe;
     pragma(LDC_intrinsic, "llvm.maxnum.v4f32")
     float4 _mm_maxps_(float4, float4) pure @safe;
+    pragma(LDC_intrinsic, "llvm.minnum.v8f32")
+    float8 _mm_minps_(float8, float8) pure @safe;
+    pragma(LDC_intrinsic, "llvm.maxnum.v8f32")
+    float8 _mm_maxps_(float8, float8) pure @safe;
 }
 
 version(DigitalMars)
@@ -46,19 +52,7 @@ class BLDPCCode
     */
     bool checkCodeword(in ubyte[] decoded_cw) const
     {
-        bool check = true;
-        foreach(i_check; 0 .. _M) {
-            ubyte c;
-            foreach(i_col; _row_mat[i_check])
-                c += decoded_cw[i_col];
-            
-            if(c % 2 == 1) {
-                check = false;
-                break;
-            }
-        }
-
-        return check;
+        return .checkCodeword(_row_mat, decoded_cw);
     }
 
 
@@ -316,101 +310,13 @@ class BLDPCCode
     }
 
 
-    void decodeP0P1SIMD(V, F)(in F[] input_p0p1, uint max_iter, ubyte[] decoded_cw) const
+    void decodeP0P1SIMD(V, F)(ref Workspace!V ws,in F[] input_p0p1, uint max_iter, ubyte[] decoded_cw) const
     in{
         assert(input_p0p1.length == _N * V.length);
         assert(decoded_cw.length == _N * V.length);
     }
     body {
-        import core.simd;
-
-        enum size_t P = V.length;
-        alias VecType = Vector!V;
-
-        static VecType[][] edge_mat;
-        static VecType[][] last_edge_mat;
-        static VecType[] updated_p0p1;
-        static VecType[] input_p0p1_copy;
-
-        if(edge_mat is null) {
-            edge_mat = new VecType[][](_M);
-            last_edge_mat = new VecType[][](_M);
-            updated_p0p1 = new VecType[](_N);
-            input_p0p1_copy = new VecType[](_N);
-
-            foreach(i; 0 .. _M) {
-                edge_mat[i] = new VecType[](_row_mat[i].length);
-                last_edge_mat[i] = new VecType[](_row_mat[i].length);
-            }
-        }
-
-        bool[P] success;
-
-        foreach(i; 0 .. P) foreach(j; 0 .. _N) {
-            input_p0p1_copy[j][i] = input_p0p1[i*_N + j];
-            updated_p0p1[j][i] = input_p0p1[i*_N + j];
-        }
-
-        foreach(i; 0 .. _M) {
-            edge_mat[i][] = 1;
-            last_edge_mat[i][] = 1;
-        }
-
-        foreach(iter; 0 .. max_iter) 
-        {
-            foreach(i_row, row; _row_mat) {
-                VecType prob_product = 1;
-                foreach(i_col_index1, i_col_1; row) {
-                    VecType p0p1 = updated_p0p1[i_col_1] / last_edge_mat[i_row][i_col_index1];
-                    VecType p1 = 1/(1 + p0p1);
-                    prob_product *= (1 - 2*p1);
-                }
-
-                foreach(i_col_index1, i_col_1; row) {
-                    VecType p0p1 = updated_p0p1[i_col_1] / last_edge_mat[i_row][i_col_index1];
-                    VecType p1 = 1/(1 + p0p1);
-                    VecType tmp = prob_product / (1 - 2*p1);
-
-                    tmp = (1 + tmp)/(1 - tmp);
-                    VecType vmin = 1E-3, vmax = 1E3;
-                    tmp = _mm_minps_(tmp, vmax);
-                    tmp = _mm_maxps_(tmp, vmin);
-                    edge_mat[i_row][i_col_index1] = tmp;
-                }
-            }
-
-            foreach(i; 0 .. _M)
-                last_edge_mat[i][] = edge_mat[i][];
-
-            updated_p0p1[] = input_p0p1_copy[];
-
-            foreach(i_row, row; _row_mat) {
-                foreach(i_col_index, i_col; row) {
-                    updated_p0p1[i_col] *= last_edge_mat[i_row][i_col_index];
-                }
-            }
-
-            foreach(i; 0 .. P){
-                if(success[i]) continue;
-
-                foreach(j; 0 .. _N) {
-                    if(updated_p0p1[j][i] > 1)
-                        decoded_cw[i*_N + j] = 0;
-                    else
-                        decoded_cw[i*_N + j] = 1;
-                }
-
-                if(checkCodeword(decoded_cw[i*_N .. (i+1)*_N]))
-                    success[i] = true;
-            }
-
-            bool checkAllSuccess = true;
-            foreach(i; 0 .. P)
-                checkAllSuccess = checkAllSuccess && success[i];
-
-            if(checkAllSuccess)
-                break;
-        }
+        sumProductDecodeP0P1SIMD!(V, F)(ws, _row_mat, input_p0p1, max_iter, decoded_cw);
     }
 
   private:
@@ -543,4 +449,171 @@ unittest
     auto llr = mod.computeLLR(syms, 0.5);
     auto decoded = code.decodeLLR(llr, 20);
     assert(decoded == codeword);
+}
+
+
+@fastmath
+V vecminmax(V, F)(V v, F vmin_, F vmax_) @trusted
+{
+    V vmin = vmin_,
+      vmax = vmax_;
+
+    return _mm_maxps_(_mm_minps_(v, vmax), vmin);
+}
+
+
+struct Workspace(T)
+{
+    size_t maxRW;
+
+    static if(is(T : float))
+        alias E = T;
+    else
+        alias E = Vector!T;
+
+    E[] edge_mat;
+    E[] updated_p0p1;
+    E[] input_p0p1_copy;
+    E[] prob1m2p;
+}
+
+
+@fastmath
+void sumProductDecodeP0P1SIMD(V, F)(ref Workspace!V ws, in uint[][] _row_mat, in F[] input_p0p1, uint max_iter, ubyte[] decoded_cw)
+{
+    with(ws){
+    import core.simd;
+    import std.experimental.allocator.mallocator;
+
+    alias alloc = AlignedMallocator.instance;
+
+    static if(is(V : float)) {
+        enum size_t P = 1;
+        alias VecType = V;
+    }else{
+        enum size_t P = V.length;
+        alias VecType = Vector!V;
+    }
+
+    immutable size_t _M = _row_mat.length;
+    immutable size_t _N = input_p0p1.length / P;
+
+    void allocate(ref VecType[] v, size_t n) @trusted {
+        v = (cast(VecType*)alloc.alignedAllocate(n * VecType.sizeof, VecType.sizeof))[0 .. n];
+    }
+
+    if(edge_mat is null) {
+        maxRW = 0;
+        size_t totElem = 0;
+        foreach(row; _row_mat) {
+            maxRW = max(maxRW, row.length);
+            totElem += row.length;
+        }
+
+        allocate(edge_mat, totElem);
+        allocate(updated_p0p1, _N);
+        allocate(input_p0p1_copy, _N);
+        allocate(prob1m2p, maxRW);
+    }
+
+    bool[P] success;
+
+    static if(P != 1) {
+        foreach(i; 0 .. P) foreach(j; 0 .. _N) {
+            input_p0p1_copy[j][i] = input_p0p1[i*_N + j];
+            updated_p0p1[j][i] = input_p0p1[i*_N + j];
+        }
+    } else {
+        foreach(i; 0 .. _N) {
+            input_p0p1_copy[i] = input_p0p1[i];
+            updated_p0p1[i] = input_p0p1[i];
+        }
+    }
+
+    edge_mat[] = 1;
+
+    foreach(iter; 0 .. max_iter) 
+    {
+        {
+            auto p_last_edge_mat = edge_mat.ptr;
+            auto p_edge_mat = edge_mat.ptr;
+            foreach(i_row, row; _row_mat) {
+                VecType prob_product = 1;
+                foreach(i_col_index1, i_col_1; row) {
+                    VecType q1 = updated_p0p1[i_col_1];
+                    VecType q2 = *p_last_edge_mat;
+                    ++p_last_edge_mat;
+
+                    VecType p1m2p = (q1 - q2) / (q1 + q2);
+                    prob1m2p[i_col_index1] = p1m2p;
+                    prob_product *= p1m2p;
+                }
+
+                foreach(i_col_index1, i_col_1; row) {
+                    VecType p1m2p = prob1m2p[i_col_index1];
+                    VecType tmp = (p1m2p + prob_product) / (p1m2p - prob_product);
+                    *p_edge_mat = vecminmax(tmp, 0.5^^20, 2.0^^20);
+                    ++p_edge_mat;
+                }
+            }
+        }
+
+        updated_p0p1[] = input_p0p1_copy[];
+
+        {
+            auto p_edge_mat = edge_mat.ptr;
+            foreach(i_row, row; _row_mat) {
+                foreach(i_col_index, i_col; row) {
+                    updated_p0p1[i_col] *= *p_edge_mat;
+                    ++p_edge_mat;
+                }
+            }
+        }
+
+        foreach(i; 0 .. _N) {
+            updated_p0p1[i] = vecminmax(updated_p0p1[i], 0, 2.0^^20);
+        }
+
+        foreach(i; 0 .. P){
+            if(success[i]) continue;
+
+            foreach(j; 0 .. _N) {
+                if(updated_p0p1[j][i] > 1)
+                    decoded_cw[i*_N + j] = 0;
+                else
+                    decoded_cw[i*_N + j] = 1;
+            }
+
+            if(checkCodeword(_row_mat, decoded_cw[i*_N .. (i+1)*_N]))
+                success[i] = true;
+        }
+
+        bool checkAllSuccess = true;
+        foreach(i; 0 .. P)
+            checkAllSuccess = checkAllSuccess && success[i];
+
+        if(checkAllSuccess)
+            break;
+    }
+    }
+}
+
+
+bool checkCodeword(in uint[][] _row_mat, in ubyte[] decoded_cw) @safe
+{
+    immutable _M = _row_mat.length;
+
+    bool check = true;
+    foreach(i_check; 0 .. _M) {
+        ubyte c;
+        foreach(i_col; _row_mat[i_check])
+            c += decoded_cw[i_col];
+        
+        if(c % 2 == 1) {
+            check = false;
+            break;
+        }
+    }
+
+    return check;
 }
