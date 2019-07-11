@@ -552,7 +552,7 @@ void sumProductDecodeP0P1SIMD(V, F)(ref Workspace!V ws, in uint[][] _row_mat, in
                 foreach(i_col_index1, i_col_1; row) {
                     VecType p1m2p = prob1m2p[i_col_index1];
                     VecType tmp = (p1m2p + prob_product) / (p1m2p - prob_product);
-                    *p_edge_mat = vecminmax(tmp, 0.5^^20, 2.0^^20);
+                    *p_edge_mat = vecminmax(tmp, 0.5^^15, 2.0^^15);
                     ++p_edge_mat;
                 }
             }
@@ -571,7 +571,7 @@ void sumProductDecodeP0P1SIMD(V, F)(ref Workspace!V ws, in uint[][] _row_mat, in
         }
 
         foreach(i; 0 .. _N) {
-            updated_p0p1[i] = vecminmax(updated_p0p1[i], 0, 2.0^^20);
+            updated_p0p1[i] = vecminmax(updated_p0p1[i], 0, 2.0^^25);
         }
 
         foreach(i; 0 .. P){
