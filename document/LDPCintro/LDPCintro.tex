@@ -429,7 +429,7 @@ $c_k$に関連するすべてのパリティ方程式がすべて満たされる
 \begin{align}
   \begin{split}
     \mathrm{LR}(c_k|S) &= \frac{P(c_k=0)}{P(c_k=1)} \times \\
-    &\times \prod_{j \in \mathcal{C}_k} g\brkts{\prod_{i \in \mathcal{R}_r,i\not=k} \brkts{ 1 - \frac{2}{1+ \mathrm{LR}(c_k|S) } } }
+    &\times \prod_{j \in \mathcal{C}_k} g\brkts{\prod_{i \in \mathcal{R}_j,i\not=k} \brkts{ 1 - \frac{2}{1+ \mathrm{LR}(c_k|S) } } }
   \end{split}
 \end{align}
 ただし，$g(x)=(1+x)/(1-x)$である．
